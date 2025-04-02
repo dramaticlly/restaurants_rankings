@@ -6,7 +6,7 @@ Scripts I used to [rank the restaurants in my city](https://mattsayar.com/where-
 
 To use this project for your own city, follow these steps:
 
-1. **Run the `gc_places_api_scraper.py` script:**
+1. **Run the `gcp_places_api_scraper.py` script:**
     - Ensure you have your own centered coordinates for your city to replace the following in `main()`:
         ```python
         # Colorado Springs coordinates
@@ -17,7 +17,7 @@ To use this project for your own city, follow these steps:
     - Place your API key in a file named `gcp_key.txt`. Get your own API key from [Google Cloud Platform](https://developers.google.com/maps/documentation/javascript/cloud-setup).
 
     ```bash
-    python gc_places_api_scraper.py
+    python gcp_places_api_scraper.py
     ```
 
     This outputs `restaurants.json` with a crude sorting. Do some cleanup to remove fake restaurants at the bottom that don't have reviews and such.
