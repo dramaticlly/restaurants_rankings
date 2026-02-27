@@ -1,8 +1,13 @@
 import json
 import logging
 import math
+import os
 from typing import List, Dict
+
+import folium
 from scipy.stats import norm
+
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__) or ".", "output")
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +79,8 @@ def rank_restaurants(input_file: str, output_file: str, confidence_level: float 
     
     # Calculate Wilson score for each restaurant
     for restaurant in restaurant_list:
-        star_rating = restaurant.get('rating', 0)
-        rating_count = restaurant.get('user_ratings_total', 0)
+        star_rating = restaurant.get('rating') or 0
+        rating_count = restaurant.get('user_ratings_total') or 0
         
         # Convert 5-star rating to proportion of positive ratings
         logger.debug("star_rating: %s", star_rating)
@@ -133,14 +138,102 @@ def get_ranking_interpretation(confidence_level: float) -> str:
     else:
         return "Very aggressive ranking: Strongly favors high ratings regardless of review count"
 
+
+def _rating_color(wilson_score_val: float) -> str:
+    """Return a marker color based on the Wilson score."""
+    if wilson_score_val >= 0.85:
+        return "darkgreen"
+    if wilson_score_val >= 0.70:
+        return "green"
+    if wilson_score_val >= 0.55:
+        return "orange"
+    return "lightgray"
+
+
+def generate_map(
+    restaurants: List[Dict],
+    output_html: str,
+    min_rating: float = 4.0,
+    min_reviews: int = 10,
+) -> None:
+    """Generate an interactive Folium map of qualifying restaurants.
+
+    Args:
+        restaurants: List of restaurant dicts (already scored with ``wilson_score``).
+        output_html: Path for the output HTML file.
+        min_rating: Minimum star rating to include (exclusive >).
+        min_reviews: Minimum review count to include (exclusive >).
+    """
+    # Filter restaurants
+    filtered = [
+        r for r in restaurants
+        if (r.get("rating") or 0) > min_rating
+        and (r.get("user_ratings_total") or 0) > min_reviews
+        and r.get("location")
+    ]
+
+    # Sort by Wilson score descending
+    filtered.sort(key=lambda r: r.get("wilson_score", 0), reverse=True)
+
+    logger.info(
+        "Map: %d / %d restaurants pass filters (rating > %s, reviews > %d)",
+        len(filtered), len(restaurants), min_rating, min_reviews,
+    )
+
+    if not filtered:
+        logger.warning("No restaurants passed the filter — skipping map generation.")
+        return
+
+    # Center the map on the mean location of filtered restaurants
+    mean_lat = sum(r["location"]["latitude"] for r in filtered) / len(filtered)
+    mean_lng = sum(r["location"]["longitude"] for r in filtered) / len(filtered)
+
+    m = folium.Map(location=[mean_lat, mean_lng], zoom_start=13)
+
+    for rank, r in enumerate(filtered, start=1):
+        lat = r["location"]["latitude"]
+        lng = r["location"]["longitude"]
+        name = r.get("name", "Unknown")
+        rating = r.get("rating", "N/A")
+        reviews = r.get("user_ratings_total", 0)
+        w_score = r.get("wilson_score", 0)
+        address = r.get("address", "")
+        maps_url = r.get("maps_url", "")
+
+        popup_html = (
+            f"<b>#{rank} {name}</b><br>"
+            f"⭐ {rating} ({reviews} reviews)<br>"
+            f"Wilson: {w_score:.4f}<br>"
+            f"{address}<br>"
+        )
+        if maps_url:
+            popup_html += f'<a href="{maps_url}" target="_blank">Google Maps</a>'
+
+        folium.Marker(
+            location=[lat, lng],
+            popup=folium.Popup(popup_html, max_width=300),
+            tooltip=f"#{rank} {name} — ⭐ {rating}",
+            icon=folium.Icon(color=_rating_color(w_score), icon="cutlery", prefix="fa"),
+        ).add_to(m)
+
+    m.save(output_html)
+    logger.info("Wrote map with %d restaurants to %s", len(filtered), output_html)
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description='Rank restaurants using Wilson Score Interval')
-    parser.add_argument('input_file', help='Input JSON file path')
-    parser.add_argument('output_file', help='Output JSON file path')
+    parser.add_argument('input_file', help='Input JSON file path (e.g. output/restaurant_98005_2026-02-26.json)')
+    parser.add_argument('output_file', help='Output JSON file path (written to output/ by default)')
     parser.add_argument('--confidence', type=float, default=0.95,
                         help='Confidence level (0.90, 0.95, or 0.99)')
+    parser.add_argument('--map', dest='map_file', metavar='HTML_FILE',
+                        help='Generate an interactive HTML map of top restaurants (written to output/ by default)')
+    parser.add_argument('--min-rating', type=float, default=4.0,
+                        help='Minimum star rating for map filter (default: 4.0)')
+    parser.add_argument('--min-reviews', type=int, default=10,
+                        help='Minimum review count for map filter (default: 10)')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='Enable debug logging output')
     
@@ -151,4 +244,30 @@ if __name__ == "__main__":
         format='%(asctime)s %(levelname)s %(name)s: %(message)s'
     )
 
-    rank_restaurants(args.input_file, args.output_file, args.confidence)
+    # Ensure output directory exists
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    # Resolve paths — place bare filenames inside output/
+    input_file = args.input_file
+    output_file = (
+        args.output_file if os.sep in args.output_file
+        else os.path.join(OUTPUT_DIR, args.output_file)
+    )
+    map_file = None
+    if args.map_file:
+        map_file = (
+            args.map_file if os.sep in args.map_file
+            else os.path.join(OUTPUT_DIR, args.map_file)
+        )
+
+    rank_restaurants(input_file, output_file, args.confidence)
+
+    if map_file:
+        with open(output_file, 'r') as f:
+            ranked_data = json.load(f)
+        generate_map(
+            ranked_data['restaurants'],
+            map_file,
+            min_rating=args.min_rating,
+            min_reviews=args.min_reviews,
+        )

@@ -2,6 +2,7 @@ import json
 import logging
 import math
 import os
+from datetime import date
 from typing import List, Dict, Set
 from dataclasses import dataclass
 
@@ -10,16 +11,79 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
+
+def _check_gcp_response(response: requests.Response, api_name: str) -> dict:
+    """Validate a GCP API response and return parsed JSON.
+
+    Handles error formats for both REST-style APIs (Geocoding — errors in
+    the JSON body with HTTP 200) and gRPC-transcoded APIs (Places New —
+    errors as HTTP 4xx with an ``error`` object).
+
+    Raises ``SystemExit`` with a descriptive message on any API failure so
+    the process terminates early.
+    """
+    # Places API (New) returns HTTP 4xx/5xx on errors
+    if not response.ok:
+        try:
+            error_data = response.json()
+            error_msg = error_data.get("error", {}).get("message", response.text)
+        except (ValueError, KeyError):
+            error_msg = response.text
+        raise SystemExit(f"{api_name} HTTP {response.status_code}: {error_msg}")
+
+    data = response.json()
+
+    # Geocoding-style: status field in JSON body (HTTP is always 200)
+    status = data.get("status")
+    if status == "REQUEST_DENIED":
+        raise SystemExit(
+            f"{api_name} request denied: {data.get('error_message', 'unknown error')}. "
+            f"Ensure the {api_name} is enabled in your GCP project."
+        )
+    if status and status not in ("OK", "ZERO_RESULTS"):
+        raise SystemExit(
+            f"{api_name} error: {status} — {data.get('error_message', '')}"
+        )
+
+    return data
+
+
+def reverse_geocode_zip(api_key: str, lat: float, lng: float) -> str:
+    """Derive the zip/postal code from coordinates using Google Geocoding API.
+
+    Also serves as an early API key validation — if the key is invalid or
+    the Geocoding API is not enabled, this will raise and abort before the
+    expensive Places API crawl begins.
+    """
+    url = "https://maps.googleapis.com/maps/api/geocode/json"
+    params = {
+        "latlng": f"{lat},{lng}",
+        "result_type": "postal_code",
+        "key": api_key,
+    }
+    response = requests.get(url, params=params)
+    data = _check_gcp_response(response, "Geocoding API")
+
+    if data.get("status") == "OK" and data.get("results"):
+        for component in data["results"][0].get("address_components", []):
+            if "postal_code" in component.get("types", []):
+                return component["long_name"]
+
+    logger.warning("Could not derive zip code from coordinates; falling back to 'unknown'")
+    return "unknown"
+
 @dataclass
 class Coordinates:
     latitude: float
     longitude: float
 
 class RestaurantFinder:
-    def __init__(self, api_key: str, center_lat: float, center_lng: float, radius_km: float):
+    def __init__(self, api_key: str, center_lat: float, center_lng: float, radius_km: float,
+                 included_types: List[str] | None = None):
         self.api_key = api_key
         self.center = Coordinates(latitude=center_lat, longitude=center_lng)
         self.radius_km = radius_km
+        self.included_types = included_types or ["restaurant"]
         self.seen_place_ids: Set[str] = set()
         self.results: List[Dict] = []
         self.base_url = "https://places.googleapis.com/v1/places:searchNearby"
@@ -55,7 +119,7 @@ class RestaurantFinder:
     def _get_restaurants_for_location(self, location: Coordinates, radius_meters: float) -> List[Dict]:
         """Make API call to get restaurants for a specific location and radius."""
         payload = {
-            "includedTypes": ["restaurant"],
+            "includedTypes": self.included_types,
             "maxResultCount": 20,
             "rankPreference": "DISTANCE",
             "locationRestriction": {
@@ -70,7 +134,8 @@ class RestaurantFinder:
         }
         
         response = requests.post(self.base_url, headers=self.headers, json=payload)
-        return response.json().get("places", [])
+        data = _check_gcp_response(response, "Places API")
+        return data.get("places", [])
 
     def _process_results(self, places: List[Dict]) -> None:
         """Process and deduplicate restaurant results."""
@@ -156,13 +221,27 @@ def main():
     CENTER_LAT = 47.625435
     CENTER_LNG = -122.154905
     RADIUS_KM = 15
-    
-    finder = RestaurantFinder(API_KEY, CENTER_LAT, CENTER_LNG, RADIUS_KM)
+    INCLUDED_TYPES = ["restaurant"]
+
+    # Derive zip code first — validates the API key before the expensive crawl
+    zip_code = reverse_geocode_zip(API_KEY, CENTER_LAT, CENTER_LNG)
+    logger.info("Resolved zip code: %s", zip_code)
+
+    finder = RestaurantFinder(API_KEY, CENTER_LAT, CENTER_LNG, RADIUS_KM,
+                              included_types=INCLUDED_TYPES)
     results = finder.find_all_restaurants()
-    
+
+    # Build output path: output/{category}_{zip_code}_{date}.json
+    category = "_".join(INCLUDED_TYPES)
+    today = date.today().isoformat()
+    output_dir = os.path.join(os.path.dirname(__file__) or ".", "output")
+    os.makedirs(output_dir, exist_ok=True)
+    output_file = os.path.join(output_dir, f"{category}_{zip_code}_{today}.json")
+
     # Save results to JSON file
-    with open("restaurants.json", "w", encoding="utf-8") as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump({"restaurants": results}, f, indent=2, ensure_ascii=False)
+    logger.info("Wrote %d restaurants to %s", len(results), output_file)
 
 if __name__ == "__main__":
     logging.basicConfig(

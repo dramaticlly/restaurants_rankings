@@ -9,3 +9,8 @@
 !requirements.txt
 !gcp_places_api_scraper.py
 !wilson_script.py
+
+# Keep the output directory but ignore its contents
+!output/
+output/*
+!output/.gitkeep
