@@ -57,20 +57,21 @@ Scripts to statistically rank restaurants in a city using Google Places data and
 
 ### Step 1: Scrape restaurant data
 
-Optionally update the center coordinates and radius in `gcp_places_api_scraper.py` for your city:
-
-```python
-# Bellevue, WA coordinates
-CENTER_LAT = 47.625435
-CENTER_LNG = -122.154905
-RADIUS_KM = 15
-```
-
-Then run:
-
 ```bash
+# Default: Bellevue, WA — 15 km radius
 python gcp_places_api_scraper.py
+
+# Custom coordinates and radius
+python gcp_places_api_scraper.py --lat 47.6754 --lng -122.3808 --radius 5
 ```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--lat` | `47.625435` | Center latitude |
+| `--lng` | `-122.154905` | Center longitude |
+| `--radius` | `15` | Search radius in km |
+| `--types` | `restaurant` | Place types to search (space-separated) |
+| `-v` / `--verbose` | off | Enable debug logging |
 
 This writes a file to `output/` named `{category}_{zip_code}_{date}.json` (e.g. `output/restaurant_98005_2026-02-26.json`) with a crude sorting. Do some cleanup to remove fake restaurants at the bottom that don't have reviews.
 

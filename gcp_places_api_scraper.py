@@ -207,7 +207,7 @@ class RestaurantFinder:
         )
         return self.results
 
-def main():
+def main(lat: float, lng: float, radius_km: float, included_types: List[str]):
     load_dotenv()
 
     API_KEY = os.environ.get("GCP_API_KEY")
@@ -216,23 +216,17 @@ def main():
             "Error: GCP_API_KEY not set. "
             "Copy .env.example to .env and fill in your API key."
         )
-    
-    # Bellevue, WA coordinates
-    CENTER_LAT = 47.625435
-    CENTER_LNG = -122.154905
-    RADIUS_KM = 15
-    INCLUDED_TYPES = ["restaurant"]
 
     # Derive zip code first — validates the API key before the expensive crawl
-    zip_code = reverse_geocode_zip(API_KEY, CENTER_LAT, CENTER_LNG)
+    zip_code = reverse_geocode_zip(API_KEY, lat, lng)
     logger.info("Resolved zip code: %s", zip_code)
 
-    finder = RestaurantFinder(API_KEY, CENTER_LAT, CENTER_LNG, RADIUS_KM,
-                              included_types=INCLUDED_TYPES)
+    finder = RestaurantFinder(API_KEY, lat, lng, radius_km,
+                              included_types=included_types)
     results = finder.find_all_restaurants()
 
     # Build output path: output/{category}_{zip_code}_{date}.json
-    category = "_".join(INCLUDED_TYPES)
+    category = "_".join(included_types)
     today = date.today().isoformat()
     output_dir = os.path.join(os.path.dirname(__file__) or ".", "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -244,8 +238,27 @@ def main():
     logger.info("Wrote %d restaurants to %s", len(results), output_file)
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Scrape restaurants from Google Places API within a radius of given coordinates."
+    )
+    parser.add_argument('--lat', type=float, default=47.625435,
+                        help='Center latitude (default: 47.625435 — Bellevue, WA)')
+    parser.add_argument('--lng', type=float, default=-122.154905,
+                        help='Center longitude (default: -122.154905 — Bellevue, WA)')
+    parser.add_argument('--radius', type=float, default=15,
+                        help='Search radius in km (default: 15)')
+    parser.add_argument('--types', nargs='+', default=['restaurant'],
+                        help='Place types to search for (default: restaurant)')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Enable debug logging output')
+
+    args = parser.parse_args()
+
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG if args.verbose else logging.INFO,
         format='%(asctime)s %(levelname)s %(name)s: %(message)s'
     )
-    main()
+
+    main(args.lat, args.lng, args.radius, args.types)
