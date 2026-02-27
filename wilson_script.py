@@ -1,7 +1,10 @@
 import json
+import logging
 import math
 from typing import List, Dict
 from scipy.stats import norm
+
+logger = logging.getLogger(__name__)
 
 def wilson_score(positive_ratings: float, total_ratings: int, confidence_level: float = 0.95) -> float:
     """
@@ -26,27 +29,27 @@ def wilson_score(positive_ratings: float, total_ratings: int, confidence_level: 
     
     # Z-score for the given confidence level
     z_score = norm.ppf(1 - (1 - confidence_level) / 2)
-    print(f"Debug: z_score = {z_score}")
+    logger.debug("z_score = %s", z_score)
     
     # Observed proportion of positive ratings
     observed_proportion = positive_ratings / total_ratings
-    print(f"Debug: observed_proportion = {observed_proportion}")
+    logger.debug("observed_proportion = %s", observed_proportion)
     
     # Wilson score calculation components
     z_squared = z_score * z_score
-    print(f"Debug: z_squared = {z_squared}")
+    logger.debug("z_squared = %s", z_squared)
     
     numerator = (observed_proportion + 
                  (z_squared / (2 * total_ratings)) - 
                  (z_score * math.sqrt((observed_proportion * (1 - observed_proportion) + 
                                      z_squared / (4 * total_ratings)) / total_ratings)))
-    print(f"Debug: numerator = {numerator}")
+    logger.debug("numerator = %s", numerator)
     
     denominator = 1 + z_squared / total_ratings
-    print(f"Debug: denominator = {denominator}")
+    logger.debug("denominator = %s", denominator)
     
     result = numerator / denominator
-    print(f"Debug: result = {result}")
+    logger.debug("result = %s", result)
     
     return result
 
@@ -75,12 +78,12 @@ def rank_restaurants(input_file: str, output_file: str, confidence_level: float 
         rating_count = restaurant.get('user_ratings_total', 0)
         
         # Convert 5-star rating to proportion of positive ratings
-        print("star_rating: " + str(star_rating))
+        logger.debug("star_rating: %s", star_rating)
         positive_ratio = max(0, (star_rating - 3) / 2)
         positive_rating_count = positive_ratio * rating_count
         
         # Calculate Wilson score with specified confidence level
-        print("Restaurant: " + restaurant.get('name'))
+        logger.debug("Restaurant: %s", restaurant.get('name'))
         wilson_lower_bound = wilson_score(
             positive_ratings=positive_rating_count,
             total_ratings=rating_count,
@@ -131,17 +134,21 @@ def get_ranking_interpretation(confidence_level: float) -> str:
         return "Very aggressive ranking: Strongly favors high ratings regardless of review count"
 
 if __name__ == "__main__":
-    import sys
     import argparse
-    import json  # Ensure json is imported
 
     parser = argparse.ArgumentParser(description='Rank restaurants using Wilson Score Interval')
     parser.add_argument('input_file', help='Input JSON file path')
     parser.add_argument('output_file', help='Output JSON file path')
     parser.add_argument('--confidence', type=float, default=0.95,
                         help='Confidence level (0.90, 0.95, or 0.99)')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Enable debug logging output')
     
-    args = parser.parse_args()  # Correctly parse the arguments
+    args = parser.parse_args()
 
-    # Call the rank_restaurants function with parsed arguments
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s'
+    )
+
     rank_restaurants(args.input_file, args.output_file, args.confidence)

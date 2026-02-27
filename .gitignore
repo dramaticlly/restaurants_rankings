@@ -2,6 +2,10 @@
 *
 
 # Except the following
+!.gitignore
+!.env.example
+!.python-version
 !README.md
+!requirements.txt
 !gcp_places_api_scraper.py
 !wilson_script.py

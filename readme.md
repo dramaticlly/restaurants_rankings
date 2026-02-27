@@ -1,31 +1,67 @@
 # Restaurant Rankings
 
-Scripts I used to [rank the restaurants in my city](https://mattsayar.com/where-are-the-best-restaurants-in-my-city-a-statistical-analysis/).
+Scripts to statistically rank restaurants in a city using Google Places data and the [Wilson Score Interval](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval). Based on this [blog post](https://mattsayar.com/where-are-the-best-restaurants-in-my-city-a-statistical-analysis/).
 
-## Usage Instructions
+## Setup
 
-To use this project for your own city, follow these steps:
-
-1. **Run the `gcp_places_api_scraper.py` script:**
-    - Ensure you have your own centered coordinates for your city to replace the following in `main()`:
-        ```python
-        # Colorado Springs coordinates
-        CENTER_LAT = 38.878400
-        CENTER_LNG = -104.767914
-        RADIUS_KM = 15
-        ```
-    - Place your API key in a file named `gcp_key.txt`. Get your own API key from [Google Cloud Platform](https://developers.google.com/maps/documentation/javascript/cloud-setup).
+1. **Install Python 3.11+ via [pyenv](https://github.com/pyenv/pyenv)** (recommended):
 
     ```bash
-    python gcp_places_api_scraper.py
+    pyenv install 3.11.11
+    pyenv local 3.11.11
     ```
 
-    This outputs `restaurants.json` with a crude sorting. Do some cleanup to remove fake restaurants at the bottom that don't have reviews and such.
-
-2. **Run the `wilson_script`:**
+2. **Create a virtual environment and install dependencies:**
 
     ```bash
-    python wilson_script.py restaurants.json restaurants_wilson_ranked.json --confidence 0.95
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
     ```
 
-    This outputs a `.json` file with all the restaurants ranked in order of Wilson interval score.
+3. **Configure your API key:**
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Edit `.env` and paste your Google Cloud Platform API key. Get one from [Google Cloud Platform](https://developers.google.com/maps/documentation/javascript/cloud-setup) (Places API must be enabled).
+
+## Usage
+
+### Step 1: Scrape restaurant data
+
+Optionally update the center coordinates and radius in `gcp_places_api_scraper.py` for your city:
+
+```python
+# Bellevue, WA coordinates
+CENTER_LAT = 47.625435
+CENTER_LNG = -122.154905
+RADIUS_KM = 15
+```
+
+Then run:
+
+```bash
+python gcp_places_api_scraper.py
+```
+
+This outputs `restaurants.json` with a crude sorting. Do some cleanup to remove fake restaurants at the bottom that don't have reviews.
+
+### Step 2: Rank restaurants using Wilson Score
+
+```bash
+python wilson_script.py restaurants.json restaurants_wilson_ranked.json --confidence 0.95
+```
+
+This outputs a `.json` file with all the restaurants ranked by Wilson Score Interval.
+
+Use `--verbose` / `-v` to see detailed debug output.
+
+#### Confidence levels
+
+| Level | Flag | Behavior |
+|---|---|---|
+| 0.90 | `--confidence 0.90` | Aggressive — favors newer places with fewer reviews |
+| 0.95 | `--confidence 0.95` | Balanced (default) |
+| 0.99 | `--confidence 0.99` | Conservative — favors established places with many reviews |

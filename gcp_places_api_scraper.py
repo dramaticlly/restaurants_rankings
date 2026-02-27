@@ -1,8 +1,14 @@
-import requests
 import json
+import logging
 import math
+import os
 from typing import List, Dict, Set
 from dataclasses import dataclass
+
+import requests
+from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Coordinates:
@@ -68,7 +74,7 @@ class RestaurantFinder:
 
     def _process_results(self, places: List[Dict]) -> None:
         """Process and deduplicate restaurant results."""
-        print(f"Processing {len(places)} places.")
+        logger.debug("Processing %d places.", len(places))
         for place in places:
             place_id = place.get("id")
             if place_id and place_id not in self.seen_place_ids:
@@ -126,7 +132,7 @@ class RestaurantFinder:
                     self._process_results(restaurants)
         
         # Sort results by rating (highest first)
-        print(f"Found {len(self.results)} restaurants.")
+        logger.info("Found %d restaurants.", len(self.results))
         self.results.sort(
             key=lambda x: (
                 x.get("rating") if x.get("rating") is not None else 0,
@@ -137,12 +143,18 @@ class RestaurantFinder:
         return self.results
 
 def main():
-    # Replace with your API key
-    API_KEY = open('gcp_key.txt').read().strip()
+    load_dotenv()
+
+    API_KEY = os.environ.get("GCP_API_KEY")
+    if not API_KEY:
+        raise SystemExit(
+            "Error: GCP_API_KEY not set. "
+            "Copy .env.example to .env and fill in your API key."
+        )
     
-    # Colorado Springs coordinates
-    CENTER_LAT = 38.878400
-    CENTER_LNG = -104.767914
+    # Bellevue, WA coordinates
+    CENTER_LAT = 47.625435
+    CENTER_LNG = -122.154905
     RADIUS_KM = 15
     
     finder = RestaurantFinder(API_KEY, CENTER_LAT, CENTER_LNG, RADIUS_KM)
@@ -153,4 +165,8 @@ def main():
         json.dump({"restaurants": results}, f, indent=2, ensure_ascii=False)
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s'
+    )
     main()
