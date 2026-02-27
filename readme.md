@@ -10,11 +10,12 @@ Scripts to statistically rank restaurants in a city using Google Places data and
 ├── .python-version               # Pinned Python version (pyenv)
 ├── requirements.txt              # Python dependencies
 ├── gcp_places_api_scraper.py     # Step 1 — scrape restaurants via Google Places API
-├── wilson_script.py              # Step 2 — rank & generate interactive map
+├── wilson_script.py              # Step 2 — rank, map & CSV export
 ├── output/                       # All generated data (gitignored)
 │   ├── restaurant_98005_2026-02-26.json
 │   ├── restaurant_98005_2026-02-26_wilson_ranked.json
-│   └── restaurant_98005_2026-02-26_map.html
+│   ├── restaurant_98005_2026-02-26_map.html
+│   └── restaurant_98005_2026-02-26.csv
 └── readme.md
 ```
 
@@ -75,20 +76,22 @@ python gcp_places_api_scraper.py --lat 47.6754 --lng -122.3808 --radius 5
 
 This writes a file to `output/` named `{category}_{zip_code}_{date}.json` (e.g. `output/restaurant_98005_2026-02-26.json`) with a crude sorting. Do some cleanup to remove fake restaurants at the bottom that don't have reviews.
 
-### Step 2: Rank restaurants and generate map
+### Step 2: Rank restaurants, generate map & CSV
 
 ```bash
 python wilson_script.py \
   output/restaurant_98005_2026-02-26.json \
   restaurant_98005_2026-02-26_wilson_ranked.json \
   --confidence 0.95 \
-  --map restaurant_98005_2026-02-26_map.html
+  --map restaurant_98005_2026-02-26_map.html \
+  --csv restaurant_98005_2026-02-26.csv
 ```
 
-This writes two files to `output/`:
+This writes to `output/`:
 
 - **`*_wilson_ranked.json`** — all restaurants ranked by Wilson Score Interval
-- **`*_map.html`** — interactive map with restaurants filtered by rating and review count
+- **`*_map.html`** — interactive Folium map (optional)
+- **`*.csv`** — filtered restaurants for Google My Maps import (optional)
 
 Use `--verbose` / `-v` to see detailed debug output.
 
@@ -100,9 +103,18 @@ Use `--verbose` / `-v` to see detailed debug output.
 | 0.95 | `--confidence 0.95` | Balanced (default) |
 | 0.99 | `--confidence 0.99` | Conservative — favors established places with many reviews |
 
-#### Map filters
+#### Filters (apply to both `--map` and `--csv`)
 
 | Flag | Default | Description |
 |---|---|---|
 | `--min-rating` | `4.0` | Minimum star rating (exclusive `>`) |
 | `--min-reviews` | `10` | Minimum review count (exclusive `>`) |
+
+### Viewing on mobile (Google My Maps)
+
+The `--csv` export is designed for [Google My Maps](https://mymaps.google.com), which renders pins as a native overlay in the Google Maps app on your phone:
+
+1. Go to [mymaps.google.com](https://mymaps.google.com) and create a new map
+2. Click **Import** → upload the CSV file from `output/`
+3. Choose **Latitude** and **Longitude** as position columns, **Name** as the title
+4. The map auto-syncs to the **Google Maps** app on your phone — open Google Maps → **Saved** → **Maps** to find it

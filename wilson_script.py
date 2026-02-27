@@ -1,3 +1,4 @@
+import csv
 import json
 import logging
 import math
@@ -220,6 +221,67 @@ def generate_map(
     logger.info("Wrote map with %d restaurants to %s", len(filtered), output_html)
 
 
+def export_csv(
+    restaurants: List[Dict],
+    output_csv: str,
+    min_rating: float = 4.0,
+    min_reviews: int = 10,
+) -> None:
+    """Export qualifying restaurants to CSV for Google My Maps import.
+
+    The CSV uses columns that Google My Maps recognizes automatically:
+    - ``Name`` and ``Address`` for labels
+    - ``Latitude`` and ``Longitude`` for pin placement
+    - Extra columns (Rating, Reviews, Wilson Score, Google Maps URL) become
+      info-window fields when you click a pin.
+
+    Args:
+        restaurants: List of restaurant dicts (already scored with ``wilson_score``).
+        output_csv: Path for the output CSV file.
+        min_rating: Minimum star rating to include (exclusive >).
+        min_reviews: Minimum review count to include (exclusive >).
+    """
+    filtered = [
+        r for r in restaurants
+        if (r.get("rating") or 0) > min_rating
+        and (r.get("user_ratings_total") or 0) > min_reviews
+        and r.get("location")
+    ]
+    filtered.sort(key=lambda r: r.get("wilson_score", 0), reverse=True)
+
+    logger.info(
+        "CSV: %d / %d restaurants pass filters (rating > %s, reviews > %d)",
+        len(filtered), len(restaurants), min_rating, min_reviews,
+    )
+
+    if not filtered:
+        logger.warning("No restaurants passed the filter — skipping CSV export.")
+        return
+
+    fieldnames = [
+        "Rank", "Name", "Latitude", "Longitude",
+        "Rating", "Reviews", "Wilson Score", "Address", "Google Maps URL",
+    ]
+
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for rank, r in enumerate(filtered, start=1):
+            writer.writerow({
+                "Rank": rank,
+                "Name": r.get("name", "Unknown"),
+                "Latitude": r["location"]["latitude"],
+                "Longitude": r["location"]["longitude"],
+                "Rating": r.get("rating", ""),
+                "Reviews": r.get("user_ratings_total", 0),
+                "Wilson Score": round(r.get("wilson_score", 0), 4),
+                "Address": r.get("address", ""),
+                "Google Maps URL": r.get("maps_url", ""),
+            })
+
+    logger.info("Wrote %d restaurants to %s", len(filtered), output_csv)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -230,10 +292,14 @@ if __name__ == "__main__":
                         help='Confidence level (0.90, 0.95, or 0.99)')
     parser.add_argument('--map', dest='map_file', metavar='HTML_FILE',
                         help='Generate an interactive HTML map of top restaurants (written to output/ by default)')
+    parser.add_argument('--csv', dest='csv_file', metavar='CSV_FILE', default=None,
+                        help='CSV output filename (default: auto-derived from input filename)')
+    parser.add_argument('--no-csv', dest='no_csv', action='store_true',
+                        help='Skip CSV generation')
     parser.add_argument('--min-rating', type=float, default=4.0,
-                        help='Minimum star rating for map filter (default: 4.0)')
+                        help='Minimum star rating for map/CSV filter (default: 4.0)')
     parser.add_argument('--min-reviews', type=int, default=10,
-                        help='Minimum review count for map filter (default: 10)')
+                        help='Minimum review count for map/CSV filter (default: 10)')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='Enable debug logging output')
     
@@ -259,15 +325,34 @@ if __name__ == "__main__":
             args.map_file if os.sep in args.map_file
             else os.path.join(OUTPUT_DIR, args.map_file)
         )
+    # CSV: on by default (auto-derive filename from input), unless --no-csv
+    csv_file = None
+    if not args.no_csv:
+        if args.csv_file:
+            csv_file = (
+                args.csv_file if os.sep in args.csv_file
+                else os.path.join(OUTPUT_DIR, args.csv_file)
+            )
+        else:
+            # Auto-derive: input "restaurant_98005_2026-02-26.json" → "restaurant_98005_2026-02-26.csv"
+            base = os.path.splitext(os.path.basename(args.input_file))[0]
+            csv_file = os.path.join(OUTPUT_DIR, f"{base}.csv")
 
     rank_restaurants(input_file, output_file, args.confidence)
 
-    if map_file:
+    # Load ranked data once for map and/or CSV export
+    if map_file or csv_file:
         with open(output_file, 'r') as f:
             ranked_data = json.load(f)
-        generate_map(
-            ranked_data['restaurants'],
-            map_file,
-            min_rating=args.min_rating,
-            min_reviews=args.min_reviews,
-        )
+        ranked_restaurants = ranked_data['restaurants']
+
+        if map_file:
+            generate_map(
+                ranked_restaurants, map_file,
+                min_rating=args.min_rating, min_reviews=args.min_reviews,
+            )
+        if csv_file:
+            export_csv(
+                ranked_restaurants, csv_file,
+                min_rating=args.min_rating, min_reviews=args.min_reviews,
+            )
