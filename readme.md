@@ -10,12 +10,10 @@ Scripts to statistically rank restaurants in a city using Google Places data and
 ├── .python-version               # Pinned Python version (pyenv)
 ├── requirements.txt              # Python dependencies
 ├── gcp_places_api_scraper.py     # Step 1 — scrape restaurants via Google Places API
-├── wilson_script.py              # Step 2 — rank, map & CSV export
+├── wilson_script.py              # Step 2 — rank & export CSV (+ optional map/JSON)
 ├── output/                       # All generated data (gitignored)
-│   ├── restaurant_98005_2026-02-26.json
-│   ├── restaurant_98005_2026-02-26_wilson_ranked.json
-│   ├── restaurant_98005_2026-02-26_map.html
-│   └── restaurant_98005_2026-02-26.csv
+│   ├── restaurant_98005_2026-02-26.json   # scraped data
+│   └── restaurant_98005_2026-02-26.csv    # ranked CSV (default output)
 └── readme.md
 ```
 
@@ -34,6 +32,9 @@ Scripts to statistically rank restaurants in a city using Google Places data and
     python -m venv .venv
     source .venv/bin/activate
     pip install -r requirements.txt
+
+    # Optional: install folium for HTML map generation (--map)
+    pip install folium
     ```
 
 3. **Configure your API key:**
@@ -76,24 +77,32 @@ python gcp_places_api_scraper.py --lat 47.6754 --lng -122.3808 --radius 5
 
 This writes a file to `output/` named `{category}_{zip_code}_{date}.json` (e.g. `output/restaurant_98005_2026-02-26.json`) with a crude sorting. Do some cleanup to remove fake restaurants at the bottom that don't have reviews.
 
-### Step 2: Rank restaurants, generate map & CSV
+### Step 2: Rank restaurants & export CSV
 
 ```bash
-python wilson_script.py \
-  output/restaurant_98005_2026-02-26.json \
-  restaurant_98005_2026-02-26_wilson_ranked.json \
-  --confidence 0.95 \
-  --map restaurant_98005_2026-02-26_map.html \
-  --csv restaurant_98005_2026-02-26.csv
+# Simplest — auto-derives output CSV from input filename
+python wilson_script.py output/restaurant_98005_2026-02-26.json
+
+# Explicit CSV path
+python wilson_script.py output/restaurant_98005_2026-02-26.json top_restaurants.csv
+
+# Also export ranked JSON and/or an interactive HTML map
+python wilson_script.py output/restaurant_98005_2026-02-26.json \
+  --json ranked.json \
+  --map ranked_map.html
 ```
 
-This writes to `output/`:
+By default this writes a filtered CSV to `output/` (e.g. `output/restaurant_98005_2026-02-26.csv`).
 
-- **`*_wilson_ranked.json`** — all restaurants ranked by Wilson Score Interval
-- **`*_map.html`** — interactive Folium map (optional)
-- **`*.csv`** — filtered restaurants for Google My Maps import (optional)
-
-Use `--verbose` / `-v` to see detailed debug output.
+| Flag | Default | Description |
+|---|---|---|
+| `output_csv` | auto-derived | CSV output path (positional, optional) |
+| `--json` | — | Also write full ranked data as JSON |
+| `--map` | — | Generate an interactive Folium HTML map (requires `folium`) |
+| `--confidence` | `0.95` | Wilson Score confidence (0.90 / 0.95 / 0.99) |
+| `--min-rating` | `4.0` | Minimum star rating filter (exclusive `>`) |
+| `--min-reviews` | `10` | Minimum review count filter (exclusive `>`) |
+| `-v` / `--verbose` | off | Enable debug logging |
 
 #### Confidence levels
 
@@ -103,16 +112,9 @@ Use `--verbose` / `-v` to see detailed debug output.
 | 0.95 | `--confidence 0.95` | Balanced (default) |
 | 0.99 | `--confidence 0.99` | Conservative — favors established places with many reviews |
 
-#### Filters (apply to both `--map` and `--csv`)
-
-| Flag | Default | Description |
-|---|---|---|
-| `--min-rating` | `4.0` | Minimum star rating (exclusive `>`) |
-| `--min-reviews` | `10` | Minimum review count (exclusive `>`) |
-
 ### Viewing on mobile (Google My Maps)
 
-The `--csv` export is designed for [Google My Maps](https://mymaps.google.com), which renders pins as a native overlay in the Google Maps app on your phone:
+The CSV output is designed for [Google My Maps](https://mymaps.google.com), which renders pins as a native overlay in the Google Maps app on your phone:
 
 1. Go to [mymaps.google.com](https://mymaps.google.com) and create a new map
 2. Click **Import** → upload the CSV file from `output/`

@@ -1,4 +1,6 @@
-folium>=0.15.0
 python-dotenv>=1.0.0
 requests>=2.31.0
 scipy>=1.11.0
+
+# Optional – only needed for --map (HTML map generation)
+# folium>=0.15.0
