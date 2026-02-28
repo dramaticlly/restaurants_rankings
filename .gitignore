@@ -12,5 +12,6 @@
 
 # Keep the output directory but ignore its contents
 !output/
+!output/*.json
 output/*
 !output/.gitkeep
