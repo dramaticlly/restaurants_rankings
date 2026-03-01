@@ -1,4 +1,4 @@
-# Ignore all files
+# Ignore all files by default (whitelist approach)
 *
 
 # Except the following
@@ -6,12 +6,22 @@
 !.env.example
 !.python-version
 !README.md
+!readme.md
 !requirements.txt
-!gcp_places_api_scraper.py
-!wilson_script.py
+!pyproject.toml
+
+# Source package
+!src/
+!src/restaurant_rankings/
+!src/restaurant_rankings/*.py
+
+# Tests
+!tests/
+!tests/*.py
+!tests/fixtures/
+!tests/fixtures/*.json
 
 # Keep the output directory but ignore its contents
 !output/
-!output/*.json
 output/*
 !output/.gitkeep

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "restaurant-rankings"
+version = "0.1.0"
+description = "Scrape, rank, and explore restaurants using Wilson Score Interval"
+requires-python = ">=3.11"
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "scipy>=1.11.0",
+    "python-telegram-bot>=21.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+map = [
+    "folium>=0.15.0",
+]
+
+[project.scripts]
+restaurant-scrape = "restaurant_rankings.scraper:main"
+restaurant-rank   = "restaurant_rankings.ranker:rank_restaurants"
+restaurant-bot    = "restaurant_rankings.bot:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

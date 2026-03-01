@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
+OUTPUT_DIR = "output"
+
 
 def _check_gcp_response(response: requests.Response, api_name: str) -> dict:
     """Validate a GCP API response and return parsed JSON.
@@ -231,9 +233,8 @@ def main(lat: float, lng: float, radius_km: float, included_types: List[str]):
     # Build output path: output/{category}_{zip_code}_{date}.json
     category = "_".join(included_types)
     today = date.today().isoformat()
-    output_dir = os.path.join(os.path.dirname(__file__) or ".", "output")
-    os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"{category}_{zip_code}_{today}.json")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    output_file = os.path.join(OUTPUT_DIR, f"{category}_{zip_code}_{today}.json")
 
     # Save results to JSON file
     with open(output_file, "w", encoding="utf-8") as f:

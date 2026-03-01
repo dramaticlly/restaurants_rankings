@@ -1,6 +1,5 @@
 import asyncio
 import glob
-import html
 import logging
 import os
 import pprint
@@ -9,11 +8,11 @@ from datetime import date
 import requests
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Import your existing logic!
-from gcp_places_api_scraper import main as run_scraper, reverse_geocode_zip
-from wilson_script import rank_restaurants, _filter_restaurants
+from restaurant_rankings.scraper import main as run_scraper, reverse_geocode_zip
+from restaurant_rankings.ranker import rank_restaurants, _filter_restaurants
+from restaurant_rankings.pagination import format_restaurant_page, paginate_callback
 
 # Enable logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -92,41 +91,22 @@ async def process_restaurant_request(update: Update, context: ContextTypes.DEFAU
         filtered_restaurants = _filter_restaurants(ranked_restaurants, min_rating=4.2, min_reviews=20)
         logger.info(f"Found total of {len(filtered_restaurants)}")
 
-        # 3. Grab the Top 10
-        top_10 = filtered_restaurants[:10]
-
-        logger.info(f"Top 10 found: {pprint.pformat(top_10)}")
-
-        if not top_10:
+        if not filtered_restaurants:
             await context.bot.send_message(chat_id, "No restaurants passed the strict quality filters in this area.")
             return
 
-        # --- FORMAT RESULT CARD ---
-        safe_zip = html.escape(str(zip_code))
+        # Store results in user_data for pagination
+        context.user_data["restaurants"] = filtered_restaurants
+        context.user_data["zip_code"] = zip_code
 
-        response_text = f"🏆 <b>Top 10 Restaurants in {safe_zip}</b>\n<i>(Ranked by Wilson Score)</i>\n\n"
-
-        for i, r in enumerate(top_10, 1):
-            # html.escape automatically handles characters like &, <, > safely.
-            # We don't need to escape normal punctuation like (), -, or . anymore!
-            name = html.escape(r.get("name", "Unknown"))
-            rating = r.get("rating", "?")
-            reviews = r.get("user_ratings_total", 0)
-            score = f"{r.get('wilson_score', 0):.3f}"
-            address = html.escape(r.get("address", "").split(",")[0])
-            maps_url = r.get("maps_url", "")
-
-            # Use standard HTML tags: <b> for bold, <a> for links
-            response_text += f"<b>{i}. <a href=\"{maps_url}\">{name}</a></b>\n"
-            response_text += f"⭐ {rating} ({reviews} reviews) | 📊 Wilson: {score}\n"
-            response_text += f"📍 {address}\n\n"
-
-        # Send the formatted card using HTML parse mode
+        # Send page 1
+        text, markup = format_restaurant_page(filtered_restaurants, zip_code, page=0)
         await context.bot.send_message(
             chat_id=chat_id,
-            text=response_text,
+            text=text,
             parse_mode="HTML",
-            disable_web_page_preview=True
+            disable_web_page_preview=True,
+            reply_markup=markup,
         )
 
     except Exception as e:
@@ -167,7 +147,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
 
-if __name__ == "__main__":
+def cli():
+    """Entry point for the Telegram bot."""
     if not GCP_API_KEY or not TELEGRAM_BOT_TOKEN:
         print("Missing GCP_API_KEY or TELEGRAM_BOT_TOKEN in .env")
         exit(1)
@@ -176,8 +157,13 @@ if __name__ == "__main__":
 
     # Handlers
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(paginate_callback, pattern=r"^page:\d+$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.LOCATION, handle_location))
 
     print("Bot is running...")
     app.run_polling()
+
+
+if __name__ == "__main__":
+    cli()

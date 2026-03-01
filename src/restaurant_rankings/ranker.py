@@ -7,7 +7,7 @@ from typing import List, Dict, Tuple
 
 from scipy.stats import norm
 
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__) or ".", "output")
+OUTPUT_DIR = "output"
 
 logger = logging.getLogger(__name__)
 
