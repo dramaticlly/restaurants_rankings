@@ -18,13 +18,13 @@ from pathlib import Path
 import pytest
 
 from restaurant_rankings.ranker import (
-    wilson_score,
-    rank_restaurants,
     _filter_restaurants,
     _rating_color,
-    get_ranking_interpretation,
     export_csv,
     export_json,
+    get_ranking_interpretation,
+    rank_restaurants,
+    wilson_score,
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
@@ -34,6 +34,7 @@ SAMPLE_JSON = FIXTURE_DIR / "sample_restaurants.json"
 # ---------------------------------------------------------------------------
 # wilson_score — pure math
 # ---------------------------------------------------------------------------
+
 
 class TestWilsonScore:
     """Tests for the Wilson Score lower-bound calculation."""
@@ -84,6 +85,7 @@ class TestWilsonScore:
 # rank_restaurants — integration with fixture file
 # ---------------------------------------------------------------------------
 
+
 class TestRankRestaurants:
     """Tests for rank_restaurants using the sample fixture file."""
 
@@ -100,7 +102,7 @@ class TestRankRestaurants:
         ranked = rank_restaurants(str(SAMPLE_JSON))
         for r in ranked:
             assert "wilson_score" in r
-            assert isinstance(r["wilson_score"], (int, float))
+            assert isinstance(r["wilson_score"], int | float)
 
     def test_augments_ranking_metadata(self):
         ranked = rank_restaurants(str(SAMPLE_JSON))
@@ -140,6 +142,7 @@ class TestRankRestaurants:
 # ---------------------------------------------------------------------------
 # _filter_restaurants
 # ---------------------------------------------------------------------------
+
 
 class TestFilterRestaurants:
     """Tests for the _filter_restaurants helper."""
@@ -185,6 +188,7 @@ class TestFilterRestaurants:
 # _rating_color
 # ---------------------------------------------------------------------------
 
+
 class TestRatingColor:
     """Tests for the Wilson-score-to-color mapping."""
 
@@ -214,6 +218,7 @@ class TestRatingColor:
 # get_ranking_interpretation
 # ---------------------------------------------------------------------------
 
+
 class TestGetRankingInterpretation:
     """Tests for human-readable confidence descriptions."""
 
@@ -234,6 +239,7 @@ class TestGetRankingInterpretation:
 # export_csv
 # ---------------------------------------------------------------------------
 
+
 class TestExportCsv:
     """Tests for CSV export."""
 
@@ -252,8 +258,17 @@ class TestExportCsv:
         with open(csv_path, newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
             header = next(reader)
-        expected = ["Rank", "Name", "Latitude", "Longitude",
-                    "Rating", "Reviews", "Wilson Score", "Address", "Google Maps URL"]
+        expected = [
+            "Rank",
+            "Name",
+            "Latitude",
+            "Longitude",
+            "Rating",
+            "Reviews",
+            "Wilson Score",
+            "Address",
+            "Google Maps URL",
+        ]
         assert header == expected
 
     def test_csv_rows_match_filter(self, tmp_path):
@@ -286,6 +301,7 @@ class TestExportCsv:
 # ---------------------------------------------------------------------------
 # export_json
 # ---------------------------------------------------------------------------
+
 
 class TestExportJson:
     """Tests for JSON export."""

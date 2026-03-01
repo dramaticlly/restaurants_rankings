@@ -19,6 +19,12 @@ test = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
 ]
+dev = [
+    "pre-commit>=3.5",
+    "ruff>=0.9",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
 map = [
     "folium>=0.15.0",
 ]
@@ -34,3 +40,35 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+# ── Ruff ─────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py311"
+src = ["src", "tests"]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "B904",   # raise without from inside except — too noisy for SystemExit
+    "SIM108", # ternary operator — readability preference
+    "UP015",  # unnecessary open mode parameter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "RUF001"]   # allow assert & ambiguous unicode in tests
+"src/restaurant_rankings/pagination.py" = ["RUF001"]  # en-dash is intentional in output
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

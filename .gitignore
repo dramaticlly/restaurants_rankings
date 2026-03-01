@@ -5,6 +5,7 @@
 !.gitignore
 !.env.example
 !.python-version
+!.pre-commit-config.yaml
 !README.md
 !readme.md
 !requirements.txt

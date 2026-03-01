@@ -9,6 +9,7 @@ The project follows the Python [**src layout**](https://packaging.python.org/en/
 ```
 .
 ├── pyproject.toml                        # Project metadata, deps & tool config
+├── .pre-commit-config.yaml               # Pre-commit hook configuration
 ├── requirements.txt                      # Pip-compatible dependency lock
 ├── .env.example                          # Template for API key config
 ├── .python-version                       # Pinned Python version (pyenv)
@@ -64,8 +65,11 @@ Each module (except the bot entry point) is deliberately self-contained so it ca
     python -m venv .venv
     source .venv/bin/activate
 
-    # Install in editable mode with test dependencies
-    pip install -e ".[test]"
+    # Install in editable mode with dev dependencies (includes pre-commit, ruff, pytest)
+    pip install -e ".[dev]"
+
+    # Install pre-commit git hooks
+    pre-commit install
 
     # Optional: install folium for HTML map generation (--map)
     pip install -e ".[map]"
@@ -176,6 +180,31 @@ The CSV output is designed for [Google My Maps](https://mymaps.google.com), whic
 2. Click **Import** → upload the CSV file from `output/`
 3. Choose **Latitude** and **Longitude** as position columns, **Name** as the title
 4. The map auto-syncs to the **Google Maps** app on your phone — open Google Maps → **Saved** → **Maps** to find it
+
+## Pre-commit hooks
+
+This project uses [pre-commit](https://pre-commit.com/) to enforce code quality on every commit. The hooks run automatically after `pre-commit install`, or you can run them manually:
+
+```bash
+# Run all hooks against every tracked file
+pre-commit run --all-files
+
+# Run a specific hook
+pre-commit run ruff --all-files
+```
+
+| Hook | Tool | What it does |
+|---|---|---|
+| `trailing-whitespace` | built-in | Strips trailing whitespace |
+| `end-of-file-fixer` | built-in | Ensures files end with a newline |
+| `check-yaml` / `check-json` / `check-toml` | built-in | Validates config file syntax |
+| `check-added-large-files` | built-in | Blocks files > 500 KB |
+| `debug-statements` | built-in | Catches leftover `breakpoint()` / `pdb` |
+| `ruff` | [Ruff](https://docs.astral.sh/ruff/) | Lint (replaces flake8 + isort + pyupgrade) — auto-fixes on commit |
+| `ruff-format` | [Ruff](https://docs.astral.sh/ruff/formatter/) | Format (replaces black) — auto-formats on commit |
+| `pytest` | [pytest](https://docs.pytest.org/) | Runs the full test suite before allowing the commit |
+
+Ruff configuration (rules, ignores, line length) lives in `pyproject.toml` under `[tool.ruff]`.
 
 ## Testing
 

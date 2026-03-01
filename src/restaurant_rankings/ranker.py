@@ -3,7 +3,6 @@ import json
 import logging
 import math
 import os
-from typing import List, Dict, Tuple
 
 from scipy.stats import norm
 
@@ -34,21 +33,29 @@ def wilson_score(positive_ratings: float, total_ratings: int, confidence_level: 
     observed_proportion = positive_ratings / total_ratings
     z_squared = z_score * z_score
 
-    numerator = (observed_proportion +
-                 (z_squared / (2 * total_ratings)) -
-                 (z_score * math.sqrt((observed_proportion * (1 - observed_proportion) +
-                                       z_squared / (4 * total_ratings)) / total_ratings)))
+    numerator = (
+        observed_proportion
+        + (z_squared / (2 * total_ratings))
+        - (
+            z_score
+            * math.sqrt(
+                (observed_proportion * (1 - observed_proportion) + z_squared / (4 * total_ratings)) / total_ratings
+            )
+        )
+    )
     denominator = 1 + z_squared / total_ratings
 
     result = numerator / denominator
     logger.debug(
         "wilson_score: obs=%.4f z²=%.4f → %.4f",
-        observed_proportion, z_squared, result,
+        observed_proportion,
+        z_squared,
+        result,
     )
     return result
 
 
-def rank_restaurants(input_file: str, confidence_level: float = 0.95) -> List[Dict]:
+def rank_restaurants(input_file: str, confidence_level: float = 0.95) -> list[dict]:
     """Read restaurants from *input_file*, score & sort by Wilson Score.
 
     Returns the ranked list (highest score first).  Each restaurant dict
@@ -66,8 +73,7 @@ def rank_restaurants(input_file: str, confidence_level: float = 0.95) -> List[Di
         positive_ratio = max(0, (star_rating - 3) / 2)
         positive_rating_count = positive_ratio * rating_count
 
-        logger.debug("Restaurant: %s  ⭐ %s  (%d reviews)",
-                     restaurant.get("name"), star_rating, rating_count)
+        logger.debug("Restaurant: %s  ⭐ %s  (%d reviews)", restaurant.get("name"), star_rating, rating_count)
 
         wilson_lower_bound = wilson_score(
             positive_ratings=positive_rating_count,
@@ -89,6 +95,7 @@ def rank_restaurants(input_file: str, confidence_level: float = 0.95) -> List[Di
     logger.info("Ranked %d restaurants (confidence=%.2f)", len(sorted_restaurants), confidence_level)
     return sorted_restaurants
 
+
 def get_ranking_interpretation(confidence_level: float) -> str:
     """Human-readable description of how *confidence_level* biases rankings."""
     if confidence_level >= 0.99:
@@ -104,14 +111,16 @@ def get_ranking_interpretation(confidence_level: float) -> str:
 # Filtering helper (shared by CSV + map)
 # ---------------------------------------------------------------------------
 
+
 def _filter_restaurants(
-    restaurants: List[Dict],
+    restaurants: list[dict],
     min_rating: float = 4.0,
     min_reviews: int = 10,
-) -> List[Dict]:
+) -> list[dict]:
     """Return restaurants that pass rating/review thresholds, sorted by Wilson score."""
     filtered = [
-        r for r in restaurants
+        r
+        for r in restaurants
         if (r.get("rating") or 0) > min_rating
         and (r.get("user_ratings_total") or 0) > min_reviews
         and r.get("location")
@@ -124,8 +133,9 @@ def _filter_restaurants(
 # CSV export  (default output)
 # ---------------------------------------------------------------------------
 
+
 def export_csv(
-    restaurants: List[Dict],
+    restaurants: list[dict],
     output_csv: str,
     min_rating: float = 4.0,
     min_reviews: int = 10,
@@ -137,31 +147,43 @@ def export_csv(
     filtered = _filter_restaurants(restaurants, min_rating, min_reviews)
     logger.info(
         "CSV: %d / %d restaurants pass filters (rating > %s, reviews > %d)",
-        len(filtered), len(restaurants), min_rating, min_reviews,
+        len(filtered),
+        len(restaurants),
+        min_rating,
+        min_reviews,
     )
     if not filtered:
         logger.warning("No restaurants passed the filter — skipping CSV export.")
         return
 
     fieldnames = [
-        "Rank", "Name", "Latitude", "Longitude",
-        "Rating", "Reviews", "Wilson Score", "Address", "Google Maps URL",
+        "Rank",
+        "Name",
+        "Latitude",
+        "Longitude",
+        "Rating",
+        "Reviews",
+        "Wilson Score",
+        "Address",
+        "Google Maps URL",
     ]
     with open(output_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for rank, r in enumerate(filtered, start=1):
-            writer.writerow({
-                "Rank": rank,
-                "Name": r.get("name", "Unknown"),
-                "Latitude": r["location"]["latitude"],
-                "Longitude": r["location"]["longitude"],
-                "Rating": r.get("rating", ""),
-                "Reviews": r.get("user_ratings_total", 0),
-                "Wilson Score": round(r.get("wilson_score", 0), 4),
-                "Address": r.get("address", ""),
-                "Google Maps URL": r.get("maps_url", ""),
-            })
+            writer.writerow(
+                {
+                    "Rank": rank,
+                    "Name": r.get("name", "Unknown"),
+                    "Latitude": r["location"]["latitude"],
+                    "Longitude": r["location"]["longitude"],
+                    "Rating": r.get("rating", ""),
+                    "Reviews": r.get("user_ratings_total", 0),
+                    "Wilson Score": round(r.get("wilson_score", 0), 4),
+                    "Address": r.get("address", ""),
+                    "Google Maps URL": r.get("maps_url", ""),
+                }
+            )
     logger.info("Wrote %d restaurants to %s", len(filtered), output_csv)
 
 
@@ -169,8 +191,9 @@ def export_csv(
 # JSON export  (optional, --json)
 # ---------------------------------------------------------------------------
 
+
 def export_json(
-    restaurants: List[Dict],
+    restaurants: list[dict],
     output_json: str,
     confidence_level: float = 0.95,
 ) -> None:
@@ -193,6 +216,7 @@ def export_json(
 # Map generation  (optional, --map)  —  folium imported lazily
 # ---------------------------------------------------------------------------
 
+
 def _rating_color(wilson_score_val: float) -> str:
     """Return a marker color based on the Wilson score."""
     if wilson_score_val >= 0.85:
@@ -205,7 +229,7 @@ def _rating_color(wilson_score_val: float) -> str:
 
 
 def generate_map(
-    restaurants: List[Dict],
+    restaurants: list[dict],
     output_html: str,
     min_rating: float = 4.0,
     min_reviews: int = 10,
@@ -218,15 +242,15 @@ def generate_map(
     try:
         import folium  # optional dependency
     except ImportError:
-        raise SystemExit(
-            "Error: 'folium' is required for map generation.\n"
-            "Install it with:  pip install folium"
-        )
+        raise SystemExit("Error: 'folium' is required for map generation.\nInstall it with:  pip install folium")
 
     filtered = _filter_restaurants(restaurants, min_rating, min_reviews)
     logger.info(
         "Map: %d / %d restaurants pass filters (rating > %s, reviews > %d)",
-        len(filtered), len(restaurants), min_rating, min_reviews,
+        len(filtered),
+        len(restaurants),
+        min_rating,
+        min_reviews,
     )
     if not filtered:
         logger.warning("No restaurants passed the filter — skipping map generation.")
@@ -247,10 +271,7 @@ def generate_map(
         maps_url = r.get("maps_url", "")
 
         popup_html = (
-            f"<b>#{rank} {name}</b><br>"
-            f"⭐ {rating} ({reviews} reviews)<br>"
-            f"Wilson: {w_score:.4f}<br>"
-            f"{address}<br>"
+            f"<b>#{rank} {name}</b><br>⭐ {rating} ({reviews} reviews)<br>Wilson: {w_score:.4f}<br>{address}<br>"
         )
         if maps_url:
             popup_html += f'<a href="{maps_url}" target="_blank">Google Maps</a>'
@@ -277,31 +298,45 @@ if __name__ == "__main__":
         help="Scraped JSON file (e.g. output/restaurant_98005_2026-02-26.json)",
     )
     parser.add_argument(
-        "output_csv", nargs="?", default=None,
+        "output_csv",
+        nargs="?",
+        default=None,
         help="CSV output path (default: auto-derived from input, written to output/)",
     )
     parser.add_argument(
-        "--json", dest="json_file", metavar="JSON_FILE",
+        "--json",
+        dest="json_file",
+        metavar="JSON_FILE",
         help="Also write the full ranked data as JSON (written to output/ by default)",
     )
     parser.add_argument(
-        "--map", dest="map_file", metavar="HTML_FILE",
+        "--map",
+        dest="map_file",
+        metavar="HTML_FILE",
         help="Generate an interactive HTML map (requires folium; written to output/ by default)",
     )
     parser.add_argument(
-        "--confidence", type=float, default=0.95,
+        "--confidence",
+        type=float,
+        default=0.95,
         help="Confidence level for Wilson Score (0.90 / 0.95 / 0.99, default: 0.95)",
     )
     parser.add_argument(
-        "--min-rating", type=float, default=4.0,
+        "--min-rating",
+        type=float,
+        default=4.0,
         help="Minimum star rating filter (default: 4.0)",
     )
     parser.add_argument(
-        "--min-reviews", type=int, default=10,
+        "--min-reviews",
+        type=int,
+        default=10,
         help="Minimum review count filter (default: 10)",
     )
     parser.add_argument(
-        "--verbose", "-v", action="store_true",
+        "--verbose",
+        "-v",
+        action="store_true",
         help="Enable debug logging output",
     )
     args = parser.parse_args()

@@ -17,10 +17,10 @@ from restaurant_rankings.scraper import (
     _check_gcp_response,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _mock_response(status_code: int = 200, json_data: dict | None = None, text: str = "") -> MagicMock:
     """Build a fake ``requests.Response``."""
@@ -42,6 +42,7 @@ def _make_finder(**kwargs) -> RestaurantFinder:
 # ---------------------------------------------------------------------------
 # _check_gcp_response
 # ---------------------------------------------------------------------------
+
 
 class TestCheckGcpResponse:
     """Tests for the GCP API response validator."""
@@ -91,6 +92,7 @@ class TestCheckGcpResponse:
 # Coordinates & geometry
 # ---------------------------------------------------------------------------
 
+
 class TestCoordinates:
     """Tests for the Coordinates dataclass."""
 
@@ -137,10 +139,12 @@ class TestCalculateNewCoordinates:
         R = 6371
         dlat = math.radians(result.latitude - origin.latitude)
         dlon = math.radians(result.longitude - origin.longitude)
-        a = (math.sin(dlat / 2) ** 2 +
-             math.cos(math.radians(origin.latitude)) *
-             math.cos(math.radians(result.latitude)) *
-             math.sin(dlon / 2) ** 2)
+        a = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(math.radians(origin.latitude))
+            * math.cos(math.radians(result.latitude))
+            * math.sin(dlon / 2) ** 2
+        )
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         distance_km = R * c
         assert abs(distance_km - 10.0) < 0.05  # within 50 m
@@ -157,6 +161,7 @@ class TestCalculateNewCoordinates:
 # ---------------------------------------------------------------------------
 # _process_results — deduplication & dict transformation
 # ---------------------------------------------------------------------------
+
 
 class TestProcessResults:
     """Tests for RestaurantFinder._process_results."""

@@ -2,9 +2,8 @@ import json
 import logging
 import math
 import os
-from datetime import date
-from typing import List, Dict, Set
 from dataclasses import dataclass
+from datetime import date
 
 import requests
 from dotenv import load_dotenv
@@ -43,9 +42,7 @@ def _check_gcp_response(response: requests.Response, api_name: str) -> dict:
             f"Ensure the {api_name} is enabled in your GCP project."
         )
     if status and status not in ("OK", "ZERO_RESULTS"):
-        raise SystemExit(
-            f"{api_name} error: {status} — {data.get('error_message', '')}"
-        )
+        raise SystemExit(f"{api_name} error: {status} — {data.get('error_message', '')}")
 
     return data
 
@@ -82,19 +79,25 @@ class Coordinates:
 
 
 class RestaurantFinder:
-    def __init__(self, api_key: str, center_lat: float, center_lng: float, radius_km: float,
-                 included_types: List[str] | None = None):
+    def __init__(
+        self,
+        api_key: str,
+        center_lat: float,
+        center_lng: float,
+        radius_km: float,
+        included_types: list[str] | None = None,
+    ):
         self.api_key = api_key
         self.center = Coordinates(latitude=center_lat, longitude=center_lng)
         self.radius_km = radius_km
         self.included_types = included_types or ["restaurant"]
-        self.seen_place_ids: Set[str] = set()
-        self.results: List[Dict] = []
+        self.seen_place_ids: set[str] = set()
+        self.results: list[dict] = []
         self.base_url = "https://places.googleapis.com/v1/places:searchNearby"
         self.headers = {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": self.api_key,
-            "X-Goog-FieldMask": "places.displayName.text,places.primaryTypeDisplayName.text,places.rating,places.id,places.shortFormattedAddress,places.userRatingCount,places.location,places.googleMapsUri"
+            "X-Goog-FieldMask": "places.displayName.text,places.primaryTypeDisplayName.text,places.rating,places.id,places.shortFormattedAddress,places.userRatingCount,places.location,places.googleMapsUri",
         }
 
     def _calculate_new_coordinates(self, center: Coordinates, distance_km: float, bearing: float) -> Coordinates:
@@ -106,21 +109,17 @@ class RestaurantFinder:
         bearing = math.radians(bearing)
 
         lat2 = math.asin(
-            math.sin(lat1) * math.cos(distance_km / R) +
-            math.cos(lat1) * math.sin(distance_km / R) * math.cos(bearing)
+            math.sin(lat1) * math.cos(distance_km / R) + math.cos(lat1) * math.sin(distance_km / R) * math.cos(bearing)
         )
 
         lon2 = lon1 + math.atan2(
             math.sin(bearing) * math.sin(distance_km / R) * math.cos(lat1),
-            math.cos(distance_km / R) - math.sin(lat1) * math.sin(lat2)
+            math.cos(distance_km / R) - math.sin(lat1) * math.sin(lat2),
         )
 
-        return Coordinates(
-            latitude=math.degrees(lat2),
-            longitude=math.degrees(lon2)
-        )
+        return Coordinates(latitude=math.degrees(lat2), longitude=math.degrees(lon2))
 
-    def _get_restaurants_for_location(self, location: Coordinates, radius_meters: float) -> List[Dict]:
+    def _get_restaurants_for_location(self, location: Coordinates, radius_meters: float) -> list[dict]:
         """Make API call to get restaurants for a specific location and radius."""
         payload = {
             "includedTypes": self.included_types,
@@ -128,20 +127,17 @@ class RestaurantFinder:
             "rankPreference": "DISTANCE",
             "locationRestriction": {
                 "circle": {
-                    "center": {
-                        "latitude": location.latitude,
-                        "longitude": location.longitude
-                    },
-                    "radius": radius_meters
+                    "center": {"latitude": location.latitude, "longitude": location.longitude},
+                    "radius": radius_meters,
                 }
-            }
+            },
         }
 
         response = requests.post(self.base_url, headers=self.headers, json=payload)
         data = _check_gcp_response(response, "Places API")
         return data.get("places", [])
 
-    def _process_results(self, places: List[Dict]) -> None:
+    def _process_results(self, places: list[dict]) -> None:
         """Process and deduplicate restaurant results."""
         logger.debug("Processing %d places.", len(places))
         for place in places:
@@ -157,12 +153,12 @@ class RestaurantFinder:
                     "user_ratings_total": place.get("userRatingCount"),
                     "location": place.get("location"),
                     "address": place.get("shortFormattedAddress"),
-                    "maps_url": place.get("googleMapsUri")
+                    "maps_url": place.get("googleMapsUri"),
                 }
 
                 self.results.append(processed_result)
 
-    def find_all_restaurants(self) -> List[Dict]:
+    def find_all_restaurants(self) -> list[dict]:
         """Find all restaurants within the specified radius."""
         # Calculate smaller search radius to handle API limit
         # Using 500m radius for each search to ensure overlap and complete coverage
@@ -176,10 +172,7 @@ class RestaurantFinder:
         for ring in range(num_circles):
             if ring == 0:
                 # Search center point
-                restaurants = self._get_restaurants_for_location(
-                    self.center,
-                    search_radius_meters
-                )
+                restaurants = self._get_restaurants_for_location(self.center, search_radius_meters)
                 self._process_results(restaurants)
             else:
                 # Calculate points around the ring
@@ -188,16 +181,9 @@ class RestaurantFinder:
 
                 for i in range(num_points):
                     bearing = (360 / num_points) * i
-                    location = self._calculate_new_coordinates(
-                        self.center,
-                        ring_radius_km,
-                        bearing
-                    )
+                    location = self._calculate_new_coordinates(self.center, ring_radius_km, bearing)
 
-                    restaurants = self._get_restaurants_for_location(
-                        location,
-                        search_radius_meters
-                    )
+                    restaurants = self._get_restaurants_for_location(location, search_radius_meters)
                     self._process_results(restaurants)
 
         # Sort results by rating (highest first)
@@ -205,29 +191,25 @@ class RestaurantFinder:
         self.results.sort(
             key=lambda x: (
                 x.get("rating") if x.get("rating") is not None else 0,
-                x.get("user_ratings_total") if x.get("user_ratings_total") is not None else 0
+                x.get("user_ratings_total") if x.get("user_ratings_total") is not None else 0,
             ),
-            reverse=True
+            reverse=True,
         )
         return self.results
 
 
-def main(lat: float, lng: float, radius_km: float, included_types: List[str]):
+def main(lat: float, lng: float, radius_km: float, included_types: list[str]):
     load_dotenv()
 
     API_KEY = os.environ.get("GCP_API_KEY")
     if not API_KEY:
-        raise SystemExit(
-            "Error: GCP_API_KEY not set. "
-            "Copy .env.example to .env and fill in your API key."
-        )
+        raise SystemExit("Error: GCP_API_KEY not set. Copy .env.example to .env and fill in your API key.")
 
     # Derive zip code first — validates the API key before the expensive crawl
     zip_code = reverse_geocode_zip(API_KEY, lat, lng)
     logger.info("Resolved zip code: %s", zip_code)
 
-    finder = RestaurantFinder(API_KEY, lat, lng, radius_km,
-                              included_types=included_types)
+    finder = RestaurantFinder(API_KEY, lat, lng, radius_km, included_types=included_types)
     results = finder.find_all_restaurants()
 
     # Build output path: output/{category}_{zip_code}_{date}.json
@@ -248,22 +230,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Scrape restaurants from Google Places API within a radius of given coordinates."
     )
-    parser.add_argument('--lat', type=float, default=47.625435,
-                        help='Center latitude (default: 47.625435 — Bellevue, WA)')
-    parser.add_argument('--lng', type=float, default=-122.154905,
-                        help='Center longitude (default: -122.154905 — Bellevue, WA)')
-    parser.add_argument('--radius', type=float, default=15,
-                        help='Search radius in km (default: 15)')
-    parser.add_argument('--types', nargs='+', default=['restaurant'],
-                        help='Place types to search for (default: restaurant)')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Enable debug logging output')
+    parser.add_argument(
+        "--lat", type=float, default=47.625435, help="Center latitude (default: 47.625435 — Bellevue, WA)"
+    )
+    parser.add_argument(
+        "--lng", type=float, default=-122.154905, help="Center longitude (default: -122.154905 — Bellevue, WA)"
+    )
+    parser.add_argument("--radius", type=float, default=15, help="Search radius in km (default: 15)")
+    parser.add_argument(
+        "--types", nargs="+", default=["restaurant"], help="Place types to search for (default: restaurant)"
+    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging output")
 
     args = parser.parse_args()
 
     logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format='%(asctime)s %(levelname)s %(name)s: %(message)s'
+        level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
 
     main(args.lat, args.lng, args.radius, args.types)

@@ -57,7 +57,7 @@ def format_restaurant_page(
         address = html.escape(r.get("address", "").split(",")[0])
         maps_url = r.get("maps_url", "")
 
-        response_text += f"<b>{i}. <a href=\"{maps_url}\">{name}</a></b>\n"
+        response_text += f'<b>{i}. <a href="{maps_url}">{name}</a></b>\n'
         response_text += f"⭐ {rating} ({reviews} reviews) | 📊 Wilson: {score}\n"
         response_text += f"📍 {address}\n\n"
 

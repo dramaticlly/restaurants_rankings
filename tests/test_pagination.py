@@ -7,10 +7,10 @@ import pytest
 
 from restaurant_rankings.pagination import PAGE_SIZE, format_restaurant_page, paginate_callback
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_restaurant(rank: int) -> dict:
     """Create a minimal restaurant dict for testing."""
@@ -33,6 +33,7 @@ def _make_restaurants(n: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 # format_restaurant_page — unit tests (pure function, no mocks needed)
 # ---------------------------------------------------------------------------
+
 
 class TestFormatRestaurantPage:
     """Tests for the format_restaurant_page helper."""
@@ -154,6 +155,7 @@ class TestFormatRestaurantPage:
 # ---------------------------------------------------------------------------
 # paginate_callback — async handler tests (mocked Telegram objects)
 # ---------------------------------------------------------------------------
+
 
 class TestPaginateCallback:
     """Tests for the paginate_callback handler."""

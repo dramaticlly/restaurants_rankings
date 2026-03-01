@@ -2,17 +2,17 @@ import asyncio
 import glob
 import logging
 import os
-import pprint
 from datetime import date
 
 import requests
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
-from restaurant_rankings.scraper import main as run_scraper, reverse_geocode_zip
-from restaurant_rankings.ranker import rank_restaurants, _filter_restaurants
 from restaurant_rankings.pagination import format_restaurant_page, paginate_callback
+from restaurant_rankings.ranker import _filter_restaurants, rank_restaurants
+from restaurant_rankings.scraper import main as run_scraper
+from restaurant_rankings.scraper import reverse_geocode_zip
 
 # Enable logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -47,8 +47,9 @@ def get_cached_file(zip_code: str, category: str = "restaurant"):
     return None
 
 
-async def process_restaurant_request(update: Update, context: ContextTypes.DEFAULT_TYPE, lat: float, lng: float,
-                                     zip_code: str = None):
+async def process_restaurant_request(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, lat: float, lng: float, zip_code: str | None = None
+):
     """Core logic to handle the scrape/cache and rank pipeline."""
     chat_id = update.effective_chat.id
 
@@ -59,8 +60,9 @@ async def process_restaurant_request(update: Update, context: ContextTypes.DEFAU
             await context.bot.send_message(chat_id, "Sorry, I couldn't determine the zip code for that location.")
             return
 
-    await context.bot.send_message(chat_id, f"🔍 Looking up best restaurants for **{zip_code}**...",
-                                   parse_mode="Markdown")
+    await context.bot.send_message(
+        chat_id, f"🔍 Looking up best restaurants for **{zip_code}**...", parse_mode="Markdown"
+    )
 
     category = "restaurant"
 
@@ -68,11 +70,12 @@ async def process_restaurant_request(update: Update, context: ContextTypes.DEFAU
     cached_file = get_cached_file(zip_code, category)
 
     if cached_file:
-        await context.bot.send_message(chat_id, f"⚡ Found recently cached data! Ranking now...")
+        await context.bot.send_message(chat_id, "⚡ Found recently cached data! Ranking now...")
         json_file_path = cached_file
     else:
-        await context.bot.send_message(chat_id,
-                                       f"⏳ No recent cache found. Scraping Google Places API (this takes ~15-30 seconds)...")
+        await context.bot.send_message(
+            chat_id, "⏳ No recent cache found. Scraping Google Places API (this takes ~15-30 seconds)..."
+        )
         try:
             # Run your existing blocking scraper in a separate thread so it doesn't freeze the bot
             await asyncio.to_thread(run_scraper, lat, lng, 5.0, [category])
@@ -127,7 +130,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Could not find coordinates for that zip code.")
     else:
         await update.message.reply_text(
-            "Please send a valid 5-digit US zip code, or share your location via the attachment menu 📎.")
+            "Please send a valid 5-digit US zip code, or share your location via the attachment menu 📎."
+        )
 
 
 async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
